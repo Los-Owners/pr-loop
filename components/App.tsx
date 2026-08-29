@@ -7,13 +7,16 @@ import { authEnabled } from "./ConvexClientProvider";
 import Session from "./Session";
 import Scan from "./Scan";
 import Report from "./Report";
+import SaveSession, { type SavePayload } from "./SaveSession";
+import SavedReport from "./SavedReport";
+import type { Id } from "@/convex/_generated/dataModel";
 import { buildQuestions } from "@/lib/questions";
 import { applyPhase, initialPhases, type PhaseId, type PhaseState } from "@/lib/phases";
-import { UNSURE } from "@/lib/scoring";
+import { UNSURE, tally } from "@/lib/scoring";
 import type { OutputPr } from "@/lib/session";
 import type { Analysis, Answer, Question } from "@/lib/types";
 
-type Step = "start" | "auth" | "scan" | "session" | "report";
+type Step = "start" | "auth" | "scan" | "session" | "report" | "saved";
 
 const EMPTY: Answer = { picks: [], text: "" };
 
@@ -26,6 +29,7 @@ export default function App({ example }: { example: Analysis }) {
   const [phases, setPhases] = useState<Record<PhaseId, PhaseState>>(initialPhases);
   const [index, setIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, Answer>>({});
+  const [openId, setOpenId] = useState<Id<"sessions"> | null>(null);
 
   const questions = useMemo(() => buildQuestions(analysis), [analysis]);
 
@@ -34,6 +38,13 @@ export default function App({ example }: { example: Analysis }) {
     setIndex(0);
     setAnswers({});
     setError(null);
+    setOpenId(null);
+  };
+
+  const openSaved = (id: Id<"sessions">) => {
+    setOpenId(id);
+    setError(null);
+    setStep("saved");
   };
 
   /** El PR de ejemplo no toca la red ni gasta análisis: es el que se enseña en vivo. */
@@ -44,6 +55,7 @@ export default function App({ example }: { example: Analysis }) {
     setIndex(0);
     setAnswers({});
     setStep("session");
+    setOpenId(null);
   };
 
   /**
@@ -150,11 +162,38 @@ export default function App({ example }: { example: Analysis }) {
     ? `${pr.url.replace(/^https?:\/\/github\.com\//, "")}`.replace(/\/pull\//, " #")
     : "PR de ejemplo";
 
+  const savePayload: SavePayload | null = useMemo(() => {
+    if (step !== "report") return null;
+    const counts = tally(questions, answers);
+    return {
+      label: repo,
+      title: analysis.feature.title,
+      prUrl: pr?.url,
+      verdict: counts.red
+        ? "red"
+        : counts.yellow
+          ? "yellow"
+          : counts.blue
+            ? "blue"
+            : counts.green
+              ? "green"
+              : "grey",
+      analysis,
+      answers,
+    };
+    // `answers` ya no cambia en el reporte, y `repo` se deriva de `pr`.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step]);
+
   return (
     <Shell
-      crumbRepo={step === "start" ? "Nuevo análisis" : repo}
-      crumbTitle={step === "start" ? "" : analysis.feature.title}
+      crumbRepo={
+        step === "start" ? "Nuevo análisis" : step === "saved" ? "Del historial" : repo
+      }
+      crumbTitle={step === "start" || step === "saved" ? "" : analysis.feature.title}
       onNew={reset}
+      activeSessionId={openId}
+      onOpenSession={openSaved}
     >
       {step === "start" ? (
         <div className="center">
@@ -226,14 +265,19 @@ export default function App({ example }: { example: Analysis }) {
       ) : null}
 
       {step === "report" ? (
-        <Report
-          analysis={analysis}
-          questions={questions}
-          answers={answers}
-          pr={pr}
-          onRestart={reset}
-        />
+        <>
+          {savePayload ? <SaveSession payload={savePayload} /> : null}
+          <Report
+            analysis={analysis}
+            questions={questions}
+            answers={answers}
+            pr={pr}
+            onRestart={reset}
+          />
+        </>
       ) : null}
+
+      {step === "saved" && openId ? <SavedReport id={openId} onRestart={reset} /> : null}
     </Shell>
   );
 }

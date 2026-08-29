@@ -326,3 +326,6 @@ a { color: var(--accent); }
   .scanChip { animation: none; }
 }
 
+
+/* Historial vacío: se dice qué va a aparecer ahí, no se finge contenido. */
+.railEmpty { font-size: 12px; line-height: 1.5; color: var(--faint); margin: 0; padding: 2px 9px 0; }

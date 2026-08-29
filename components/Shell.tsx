@@ -2,20 +2,8 @@
 
 import { useSyncExternalStore } from "react";
 import AccountRow from "./AccountRow";
-import { VERDICT_META } from "@/lib/scoring";
-import type { Verdict } from "@/lib/types";
-
-type HistoryEntry = { id: string; title: string; meta: string; worst: Verdict; active?: boolean };
-
-/** Historial de ejemplo: se reemplaza por Convex cuando haya sesiones guardadas. */
-const TODAY: HistoryEntry[] = [
-  { id: "418", title: "Descuento por volumen", meta: "acme/checkout #418", worst: "red", active: true },
-  { id: "412", title: "Cupones por campaña", meta: "acme/checkout #412", worst: "green" },
-];
-const OLDER: HistoryEntry[] = [
-  { id: "405", title: "Reintentos de cobro", meta: "acme/billing #405", worst: "yellow" },
-  { id: "398", title: "Timeout de precios", meta: "acme/checkout #398", worst: "green" },
-];
+import History from "./History";
+import type { Id } from "@/convex/_generated/dataModel";
 
 const STORAGE_KEY = "pr-loop:rail-collapsed";
 
@@ -67,32 +55,19 @@ function PanelIcon() {
   );
 }
 
-function Group({ label, items }: { label: string; items: HistoryEntry[] }) {
-  return (
-    <div className="railGroup">
-      <p className="eyebrow">{label}</p>
-      {items.map((h) => (
-        <button key={h.id} className="histItem" data-active={h.active ? "true" : undefined} type="button">
-          <span className="dot" style={{ background: VERDICT_META[h.worst].color }} />
-          <span style={{ minWidth: 0 }}>
-            <span className="histTitle">{h.title}</span>
-            <span className="histMeta">{h.meta}</span>
-          </span>
-        </button>
-      ))}
-    </div>
-  );
-}
-
 export default function Shell({
   crumbRepo,
   crumbTitle,
   onNew,
+  activeSessionId,
+  onOpenSession,
   children,
 }: {
   crumbRepo: string;
   crumbTitle: string;
   onNew: () => void;
+  activeSessionId: Id<"sessions"> | null;
+  onOpenSession: (id: Id<"sessions">) => void;
   children: React.ReactNode;
 }) {
   const collapsed = useSyncExternalStore(subscribe, isCollapsed, isCollapsedOnServer);
@@ -128,8 +103,7 @@ export default function Shell({
             Analizar un PR
           </button>
 
-          <Group label="Hoy" items={TODAY} />
-          <Group label="Semana pasada" items={OLDER} />
+          <History activeId={activeSessionId} onOpen={onOpenSession} />
 
           <AccountRow />
         </div>
