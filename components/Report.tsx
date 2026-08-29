@@ -4,22 +4,43 @@ import { useState } from "react";
 import SequenceDiagram, { type DiagramMessage } from "./SequenceDiagram";
 import { VERDICT_META, headline, tally, verdictFor } from "@/lib/scoring";
 import { CAUSES, adviceFor, buildPrompt, evidenceFor, feedbackFor, questionForMessage, skillsFor } from "@/lib/report";
+import { buildSessionOutput, type OutputPr } from "@/lib/session";
 import type { Analysis, Answer, Question } from "@/lib/types";
 
 export default function Report({
   analysis,
   questions,
   answers,
+  pr = null,
   onRestart,
 }: {
   analysis: Analysis;
   questions: Question[];
   answers: Record<string, Answer>;
+  pr?: OutputPr | null;
   onRestart: () => void;
 }) {
   const [tab, setTab] = useState(analysis.paths[0]?.id ?? "");
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const [copied, setCopied] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  /**
+   * La salida de la sesión: las preguntas, las respuestas y el Mermaid. Se arma acá con la
+   * misma función que devuelve /api/session, así lo que se descarga y lo que se ve son lo
+   * mismo. Ver lib/session.ts
+   */
+  const download = () => {
+    const output = buildSessionOutput({ analysis, questions, answers, pr });
+    const blob = new Blob([JSON.stringify(output, null, 2)], { type: "application/json" });
+    const href = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = href;
+    a.download = `pr-loop-${pr ? `${pr.url.split("/").slice(-3, -2)}-${pr.url.split("/").pop()}` : "ejemplo"}.json`;
+    a.click();
+    URL.revokeObjectURL(href);
+    setSaved(true);
+  };
 
   const counts = tally(questions, answers);
   const worst = counts.red ? "red" : counts.yellow ? "yellow" : counts.blue ? "blue" : "green";
@@ -49,7 +70,12 @@ export default function Report({
               : "Quedan caminos que el código no cubre, aunque los hayas identificado."}
           </p>
         </div>
-        <button type="button" className="chipBtn" onClick={onRestart}>Analizar otro PR</button>
+        <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+          <button type="button" className="chipBtn" onClick={download}>
+            {saved ? "Salida descargada" : "Descargar salida"}
+          </button>
+          <button type="button" className="chipBtn" onClick={onRestart}>Analizar otro PR</button>
+        </div>
       </div>
 
       <div className="tally">

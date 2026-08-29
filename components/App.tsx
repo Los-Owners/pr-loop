@@ -5,35 +5,118 @@ import Shell from "./Shell";
 import SignInGate from "./SignInGate";
 import { authEnabled } from "./ConvexClientProvider";
 import Session from "./Session";
+import Scan from "./Scan";
 import Report from "./Report";
 import { buildQuestions } from "@/lib/questions";
+import { applyPhase, initialPhases, type PhaseId, type PhaseState } from "@/lib/phases";
 import { UNSURE } from "@/lib/scoring";
+import type { OutputPr } from "@/lib/session";
 import type { Analysis, Answer, Question } from "@/lib/types";
 
 type Step = "start" | "auth" | "scan" | "session" | "report";
 
 const EMPTY: Answer = { picks: [], text: "" };
 
-export default function App({ analysis }: { analysis: Analysis }) {
-  const questions = useMemo(() => buildQuestions(analysis), [analysis]);
+export default function App({ example }: { example: Analysis }) {
+  const [analysis, setAnalysis] = useState<Analysis>(example);
+  const [pr, setPr] = useState<OutputPr | null>(null);
   const [step, setStep] = useState<Step>("start");
-  const [url, setUrl] = useState("github.com/acme/checkout/pull/418");
+  const [url, setUrl] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [phases, setPhases] = useState<Record<PhaseId, PhaseState>>(initialPhases);
   const [index, setIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, Answer>>({});
+
+  const questions = useMemo(() => buildQuestions(analysis), [analysis]);
 
   const reset = () => {
     setStep("start");
     setIndex(0);
     setAnswers({});
+    setError(null);
   };
 
-  const scan = () => {
+  /** El PR de ejemplo no toca la red ni gasta análisis: es el que se enseña en vivo. */
+  const runExample = () => {
+    setAnalysis(example);
+    setPr(null);
+    setError(null);
+    setIndex(0);
+    setAnswers({});
+    setStep("session");
+  };
+
+  /**
+   * Corre el análisis leyendo el progreso real por SSE. Cada fase que el servidor cierra
+   * marca su check acá; no hay ningún temporizador simulando avance.
+   */
+  const scan = async () => {
+    setError(null);
+    setIndex(0);
+    setAnswers({});
+    setPhases(initialPhases());
     setStep("scan");
-    setTimeout(() => setStep("session"), 1700);
+
+    try {
+      const response = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "content-type": "application/json", accept: "text/event-stream" },
+        body: JSON.stringify({ url }),
+      });
+      if (!response.ok || !response.body) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error ?? "El analizador falló.");
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let result: { analysis: Analysis; pr?: OutputPr | null } | null = null;
+
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        // Los eventos van separados por una línea en blanco; lo que quede a medias se
+        // guarda para el próximo trozo.
+        const chunks = buffer.split("\n\n");
+        buffer = chunks.pop() ?? "";
+
+        for (const chunk of chunks) {
+          const name = /^event: (.+)$/m.exec(chunk)?.[1];
+          const raw = /^data: (.+)$/m.exec(chunk)?.[1];
+          if (!name || !raw) continue;
+          const payload = JSON.parse(raw);
+
+          if (name === "phase") setPhases((prev) => applyPhase(prev, payload));
+          else if (name === "error") throw new Error(payload.error);
+          else if (name === "result") result = payload;
+        }
+      }
+
+      if (!result) throw new Error("El análisis se cortó antes de terminar.");
+
+      setAnalysis(result.analysis);
+      setPr(result.pr ?? null);
+      // Un respiro para que el último check se vea antes de cambiar de pantalla.
+      await new Promise((r) => setTimeout(r, 550));
+      setStep("session");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "El analizador falló.");
+      setStep("start");
+    }
   };
 
   /** Sin deployment de Convex no hay a quién pedirle login: se analiza directo. */
-  const begin = () => (authEnabled ? setStep("auth") : scan());
+  const begin = () => {
+    if (!url.trim()) {
+      setError("Pega la URL de un pull request público.");
+      return;
+    }
+    if (authEnabled) setStep("auth");
+    else void scan();
+  };
 
   const pick = (q: Question, optionId: string) => {
     setAnswers((prev) => {
@@ -63,9 +146,13 @@ export default function App({ analysis }: { analysis: Analysis }) {
     else setIndex(index + 1);
   };
 
+  const repo = pr
+    ? `${pr.url.replace(/^https?:\/\/github\.com\//, "")}`.replace(/\/pull\//, " #")
+    : "PR de ejemplo";
+
   return (
     <Shell
-      crumbRepo={step === "start" ? "Nuevo análisis" : "acme/checkout #418"}
+      crumbRepo={step === "start" ? "Nuevo análisis" : repo}
       crumbTitle={step === "start" ? "" : analysis.feature.title}
       onNew={reset}
     >
@@ -78,9 +165,23 @@ export default function App({ analysis }: { analysis: Analysis }) {
           </p>
           <div style={{ width: 600 }}>
             <div className="urlRow">
-              <input className="input" value={url} onChange={(e) => setUrl(e.target.value)} aria-label="URL del PR" />
+              <input
+                className="input"
+                value={url}
+                placeholder="github.com/usuario/repo/pull/123"
+                onChange={(e) => setUrl(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && begin()}
+                aria-label="URL del PR"
+              />
               <button type="button" className="primary" onClick={begin}>Analizar</button>
             </div>
+
+            {error ? (
+              <p style={{ fontSize: 12.5, color: "var(--red)", margin: "10px 0 0" }} role="alert">
+                {error}
+              </p>
+            ) : null}
+
             <div className="areas">
               <div className="area" data-on="true">
                 <span className="areaName">Producto</span>
@@ -96,39 +197,20 @@ export default function App({ analysis }: { analysis: Analysis }) {
               </div>
             </div>
             <p style={{ fontSize: 12.5, color: "var(--faint)", margin: "16px 0 0", textAlign: "center" }}>
-              Durante la sesión no vas a poder mirar el código.
+              Solo repos públicos. Durante la sesión no vas a poder mirar el código.{" "}
+              <button type="button" className="ghost" onClick={runExample}>
+                Ver el PR de ejemplo
+              </button>
             </p>
           </div>
         </div>
       ) : null}
 
       {step === "auth" ? (
-        <SignInGate repo={url} onSignedIn={scan} onCancel={() => setStep("start")} />
+        <SignInGate repo={url} onSignedIn={() => void scan()} onCancel={() => setStep("start")} />
       ) : null}
 
-      {step === "scan" ? (
-        <div className="center">
-          <p style={{ fontSize: 16, fontWeight: 500, margin: "0 0 18px" }}>Reconstruyendo los specs desde el código</p>
-          <div style={{ display: "flex", flexDirection: "column", gap: 9, width: 420 }}>
-            {[
-              `${analysis.participants.length} participantes detectados en el flujo`,
-              `${analysis.paths.length} caminos reconstruidos desde las condicionales`,
-              `${analysis.tests.length} pruebas analizadas, ${analysis.tests.filter((t) => !t.substantive).length} sin aserción real`,
-              "Specs derivados del código",
-            ].map((l) => (
-              <div key={l} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13.5, color: "var(--soft)" }}>
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--green)" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                  <path d="M4 12.5l5.5 5.5L20 7" />
-                </svg>
-                {l}
-              </div>
-            ))}
-          </div>
-          <p style={{ fontSize: 12.5, color: "var(--faint)", marginTop: 22 }}>
-            El código es la única fuente de verdad. Nada de esto se te muestra todavía.
-          </p>
-        </div>
-      ) : null}
+      {step === "scan" ? <Scan phases={phases} /> : null}
 
       {step === "session" ? (
         <Session
@@ -144,7 +226,13 @@ export default function App({ analysis }: { analysis: Analysis }) {
       ) : null}
 
       {step === "report" ? (
-        <Report analysis={analysis} questions={questions} answers={answers} onRestart={reset} />
+        <Report
+          analysis={analysis}
+          questions={questions}
+          answers={answers}
+          pr={pr}
+          onRestart={reset}
+        />
       ) : null}
     </Shell>
   );

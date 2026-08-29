@@ -63,3 +63,20 @@ ahorrar bajando de modelo, y este es el peor lugar para perder calidad.
 **No la hace un modelo.** Las cinco preguntas salen de este JSON con código normal: baraja
 distractores y siembra el participante inexistente. Instantáneo, gratis y reproducible — y en un
 demo en vivo, reproducible vale más que inteligente.
+
+## Generación del diagrama
+
+**Tampoco la hace un modelo.** El Mermaid sale de este JSON con código normal (`lib/mermaid.ts`),
+igual que las preguntas: un `sequenceDiagram` por camino, más la versión pintada por corrección ×
+confianza, donde los mensajes contiguos del mismo color se agrupan en un bloque `rect`.
+
+Las reglas de sintaxis son las de la skill `architecture-map`, y su propio `validate.mjs` las
+verifica contra el parser oficial en `npm run check:mermaid`. Una excepción encontrada por ese
+validador: para el `#` va la entidad numérica `#35;` y no la nominal `&num;` que documenta la
+skill — `&num;` parsea dentro de un mensaje pero rompe dentro de un alias de `participant`.
+
+## Salida de la sesión
+
+`lib/session.ts` junta las tres cosas que se entregan al final —las preguntas, las respuestas con
+su veredicto, y el Mermaid— en un solo objeto. Es lo que descarga el reporte y lo que devuelve
+`POST /api/session`. Función pura: la misma sesión da siempre la misma salida.

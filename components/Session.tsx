@@ -1,62 +1,9 @@
 "use client";
 
-import SequenceDiagram, { type DiagramActor, type DiagramMessage } from "./SequenceDiagram";
+import SequenceDiagram from "./SequenceDiagram";
 import { UNSURE, isReady, needsConfirmation } from "@/lib/scoring";
+import { devDiagram } from "@/lib/dev-diagram";
 import type { Analysis, Answer, Question } from "@/lib/types";
-
-const ORDER = ["cart", "price", "coup", "__trap"];
-
-/** El diagrama que el dev construye con sus respuestas. Nunca el del código. */
-function devDiagram(analysis: Analysis, answers: Record<string, Answer>, current: Question) {
-  const picked = (answers.q1?.picks ?? []).filter((p) => p !== UNSURE);
-  const named = (id: string) =>
-    id === "__trap" ? "Inventario" : analysis.participants.find((p) => p.id === id)?.name.replace(/^Servicio de /, "") ?? id;
-
-  const actors: DiagramActor[] = [
-    { id: "app", name: "App cliente" },
-    { id: "api", name: "API Checkout" },
-    ...ORDER.filter((id) => picked.includes(id)).map((id) => ({
-      id,
-      name: named(id),
-      isNew: current.id === "q1",
-    })),
-  ];
-  const known = new Set(actors.map((a) => a.id));
-
-  const happy = analysis.paths.find((p) => p.kind === "happy");
-  const orderPick = answers.q2?.picks[0];
-  let messages: DiagramMessage[] = [];
-
-  if (orderPick === "ok" && happy) {
-    messages = happy.messages.filter((m) => known.has(m.from) && known.has(m.to));
-  } else if (orderPick === "inv" && happy) {
-    messages = [...happy.messages].reverse().filter((m) => known.has(m.from) && known.has(m.to));
-  } else if (orderPick === "sep") {
-    messages = [...known]
-      .filter((id) => id !== "app")
-      .map((id) => ({ from: "app", to: id, label: "consulta directa" }));
-  }
-
-  const thr = answers.q3?.picks[0];
-  if (thr && thr !== UNSURE) {
-    const label = thr.replace("alt-", "");
-    messages = messages.map((m) =>
-      analysis.decisions.some((d) => d.evidence === m.evidence) ? { ...m, label: `${m.label} · ${label}` } : m
-    );
-  }
-
-  const fall = answers.q5?.picks[0];
-  const fallText: Record<string, string> = {
-    degrada: "sin respuesta · responde degradado",
-    retry: "sin respuesta · reintenta y falla",
-    nada: "sin respuesta · queda esperando",
-  };
-  if (fall && fallText[fall] && known.has("price")) {
-    messages = [...messages, { from: "price", to: "api", label: fallText[fall], isReturn: true, color: "#a87515" }];
-  }
-
-  return { actors, messages };
-}
 
 export default function Session({
   analysis,
@@ -82,7 +29,7 @@ export default function Session({
   const picks = a?.picks ?? [];
   const last = index === questions.length - 1;
   const ready = isReady(q, a);
-  const { actors, messages } = devDiagram(analysis, answers, q);
+  const { actors, messages } = devDiagram(analysis, answers, q.id === "q1");
 
   const hint = !picks.length
     ? "Elige una opción."

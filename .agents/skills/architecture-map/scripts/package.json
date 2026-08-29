@@ -1,0 +1,11 @@
+{
+  "name": "architecture-map-validate",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "mermaid": "^11.17.0",
+    "jsdom": "^30.0.1",
+    "pako": "^3.0.1",
+    "js-base64": "^3.9.3"
+  }
+}

@@ -47,4 +47,11 @@ next-env.d.ts
 
 # Claude
 .claude
-.agents
+
+# El agente escribe acá, pero las skills sí van al repo: el analizador las lee en tiempo
+# de ejecución, así que si no viajan con el deploy la mitad de su prompt desaparece.
+.agents/*
+!.agents/skills/
+
+.env
+.env.local
