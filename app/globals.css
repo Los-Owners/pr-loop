@@ -54,7 +54,23 @@ a { color: var(--accent); }
 .rail {
   width: 268px; flex: none; height: 100vh; position: sticky; top: 0;
   background: var(--rail); border-right: 1px solid var(--line);
-  display: flex; flex-direction: column; padding: 14px 12px;
+  overflow: hidden; transition: width .18s ease, border-right-color .18s ease;
+}
+/* El contenido conserva su ancho y el rail lo recorta: así se pliega sin aplastarse. */
+.railInner { width: 268px; height: 100%; display: flex; flex-direction: column; padding: 14px 12px; }
+.rail[data-collapsed="true"] { width: 0; border-right-color: transparent; }
+/* `visibility` —no `opacity`— saca lo oculto del orden de tabulación. */
+.rail[data-collapsed="true"] .railInner { visibility: hidden; }
+
+.railToggle {
+  flex: none; display: flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; padding: 0; border: 0; border-radius: 7px;
+  background: transparent; color: var(--faint);
+}
+.railToggle:hover { background: #ececef; color: var(--soft); }
+
+@media (prefers-reduced-motion: reduce) {
+  .rail { transition: none; }
 }
 .brand { display: flex; align-items: center; gap: 9px; padding: 6px 8px 14px; font-weight: 600; font-size: 14px; letter-spacing: -.01em; }
 .newBtn {
@@ -83,6 +99,7 @@ a { color: var(--accent); }
   display: flex; align-items: center; justify-content: space-between;
   padding: 13px 28px; border-bottom: 1px solid var(--hair);
 }
+.crumbTitle { font-size: 13px; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .chip {
   font-family: var(--mono); font-size: 10.5px; letter-spacing: .07em;
   padding: 4px 10px; border-radius: 20px; background: var(--accent-soft); color: var(--accent);
