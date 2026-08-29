@@ -1,5 +1,6 @@
 import type { Analysis, Question } from "./types";
 import { UNSURE } from "./scoring";
+import { TRAP_ID, TRAP_NAME } from "./dev-diagram";
 
 const NO_SE = { id: UNSURE, label: "No sé" };
 
@@ -17,6 +18,28 @@ function nameOf(a: Analysis, id: string) {
 }
 
 /**
+ * Baraja estable: la respuesta real no puede caer siempre en la misma posición, pero el
+ * mismo análisis tiene que dar siempre la misma pregunta. En un demo en vivo, reproducible
+ * vale más que aleatorio.
+ */
+function shuffle<T>(items: T[], seed: string): T[] {
+  let h = 2166136261;
+  for (let i = 0; i < seed.length; i++) h = Math.imul(h ^ seed.charCodeAt(i), 16777619);
+  const out = [...items];
+  for (let i = out.length - 1; i > 0; i--) {
+    h = Math.imul(h ^ (h >>> 15), 2246822507);
+    const j = Math.abs(h) % (i + 1);
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+
+/** Primera letra en mayúscula, sin tocar el resto: las etiquetas vienen en minúscula. */
+function sentence(text: string) {
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+/**
  * Las preguntas NO las genera un modelo: salen del análisis con código normal.
  * Instantáneo, gratis y reproducible — en un demo en vivo eso vale más que ser listo.
  * Ver docs/spec/01-sesion.md
@@ -26,7 +49,7 @@ export function buildQuestions(a: Analysis): Question[] {
   const happy = happyPath(a);
 
   // 1 · Participantes. La trampa es un servicio plausible que no está en el análisis.
-  const trap = { id: "__trap", label: "Servicio de Inventario" };
+  const trap = { id: TRAP_ID, label: `Servicio de ${TRAP_NAME}` };
   const q1: Question = {
     id: "q1",
     title: "Además de la App y el API, ¿qué servicios participan en este flujo?",
@@ -42,7 +65,7 @@ export function buildQuestions(a: Analysis): Question[] {
   };
 
   // 2 · Orden. La correcta se describe desde el camino feliz; los distractores lo invierten.
-  const calls = happy.messages.filter((m) => !m.isReturn);
+  const calls = (happy?.messages ?? []).filter((m) => !m.isReturn);
   const first = calls[1], second = calls[2];
   const q2: Question = {
     id: "q2",
@@ -81,11 +104,15 @@ export function buildQuestions(a: Analysis): Question[] {
         needsText: true,
         panel: "diagram",
         options: [
-          ...d.alternatives.map((alt) => ({
-            id: `alt-${alt}`,
-            label: alt,
-            correct: alt === d.actual,
-          })),
+          // `alternatives` son solo distractores; la real se agrega acá y se baraja con
+          // ellos, para que no caiga siempre en la misma posición.
+          ...shuffle(
+            [
+              { id: `alt-${d.actual}`, label: d.actual, correct: true },
+              ...d.alternatives.map((alt) => ({ id: `alt-${alt}`, label: alt })),
+            ],
+            d.id,
+          ),
           NO_SE,
         ],
       }
@@ -97,7 +124,7 @@ export function buildQuestions(a: Analysis): Question[] {
       p.kind === "alternative" &&
       !a.tests.some((t) => t.substantive && t.covers.includes(p.id))
   );
-  const q4: Question = {
+  const q4: Question | null = a.tests.length === 0 ? null : {
     id: "q4",
     title: `Escenario: «${uncovered?.name ?? "un caso borde"}». ¿Cuál de estas pruebas lo cubre?`,
     hint: "Están descritas por lo que comprueban, no por el nombre que les puso quien las escribió.",
@@ -125,10 +152,20 @@ export function buildQuestions(a: Analysis): Question[] {
         multi: false,
         needsText: false,
         panel: "diagram",
+        // La correcta sale del último mensaje del camino: el analizador escribe ahí qué
+        // pasa de verdad. Una frase fija («la petición queda esperando») solo sirve si el
+        // camino faltante es una llamada de red, y muchos no lo son.
         options: [
           { id: "degrada", label: "Responde igual, con el resultado degradado" },
           { id: "retry", label: "Reintenta y después falla con un error" },
-          { id: "nada", label: "No está contemplado: la petición queda esperando", correct: true },
+          {
+            id: "nada",
+            label: sentence(
+              missing.messages[missing.messages.length - 1]?.label ??
+                "No está contemplado: la petición queda esperando",
+            ),
+            correct: true,
+          },
           NO_SE,
         ],
       }

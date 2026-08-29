@@ -37,9 +37,10 @@ export const ANALYSIS_SCHEMA = {
 
     participants: {
       type: "array",
-      minItems: 2,
+      // Sin `minItems` mayor que 1: la salida estructurada solo acepta 0 o 1 y devuelve 400.
+      // El mínimo real lo hace cumplir checkUsable() en validate.ts.
       description:
-        "Los actores del flujo. Usa 'app' para el cliente y 'api' para el punto de entrada; " +
+        "Al menos dos. Los actores del flujo: usa 'app' para el cliente y 'api' para el punto de entrada; " +
         "el resto son servicios colaboradores. Incluye los que el código llama aunque nadie los haya pedido.",
       items: {
         type: "object",
@@ -117,10 +118,13 @@ export const ANALYSIS_SCHEMA = {
           actual: { type: "string", description: "Lo que el código hace de verdad. Corto." },
           alternatives: {
             type: "array",
-            minItems: 2,
+            // Sin `minItems` mayor que 1: la salida estructurada solo acepta 0 o 1.
+            // normalize() descarta la decisión que se quede sin distractores.
             description:
-              "Respuestas plausibles incluyendo la real. Los distractores deben ser creíbles " +
-              "para alguien que leyó el PR por encima.",
+              "Al menos dos DISTRACTORES: respuestas plausibles pero FALSAS. No incluyas aquí " +
+              "'actual' ni ninguna forma de decir lo mismo — la real se agrega sola. Cada " +
+              "distractor tiene que ser incompatible con 'actual': si dos opciones pueden ser " +
+              "ciertas a la vez, la pregunta no mide nada. Creíbles para quien leyó el PR por encima.",
             items: { type: "string" },
           },
           evidence: EVIDENCE,

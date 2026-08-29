@@ -1,8 +1,18 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { Analysis } from "../types";
 import { ANALYSIS_SCHEMA } from "./schema";
-import { SYSTEM, buildUserMessage } from "./prompt";
+import { buildSystem, buildUserMessage } from "./prompt";
 import { normalize, checkUsable, type Dropped, type RawAnalysis } from "./validate";
+
+/**
+ * Lo que el analizador va sabiendo mientras genera. Es progreso real, no un temporizador:
+ * `sections` son las secciones del contrato que el modelo ya emitió, leídas del propio JSON
+ * a medida que llega. Ver docs/spec/03-analizador.md
+ */
+export type AnalyzeProgress = { chars: number; sections: string[] };
+
+/** Las claves de nivel superior del contrato, en el orden en que el modelo las escribe. */
+const SECTIONS = ["feature", "participants", "paths", "decisions", "tests", "snippets"];
 
 export type AnalyzeInput = {
   diff: string;
@@ -32,15 +42,19 @@ export class AnalyzerError extends Error {}
  * Va en streaming porque un diff grande con sus archivos empuja la respuesta hacia los
  * minutos, y una petición sin streaming se cae contra el timeout antes de terminar.
  */
-export async function analyze(input: AnalyzeInput): Promise<AnalyzeResult> {
+export async function analyze(
+  input: AnalyzeInput,
+  onProgress?: (progress: AnalyzeProgress) => void,
+): Promise<AnalyzeResult> {
   if (!input.diff.trim()) throw new AnalyzerError("El diff está vacío.");
 
+  // Sin argumentos: el SDK resuelve ANTHROPIC_API_KEY del entorno.
   const client = new Anthropic();
 
   const stream = client.messages.stream({
     model: "claude-opus-5",
     max_tokens: 64000,
-    system: SYSTEM,
+    system: buildSystem(),
     thinking: { type: "adaptive" },
     output_config: {
       effort: "high",
@@ -48,6 +62,21 @@ export async function analyze(input: AnalyzeInput): Promise<AnalyzeResult> {
     },
     messages: [{ role: "user", content: buildUserMessage(input) }],
   });
+
+  if (onProgress) {
+    let seen = 0;
+    let ticked = 0;
+    stream.on("text", (_delta, snapshot) => {
+      const sections = SECTIONS.filter((key) => snapshot.includes(`"${key}"`));
+      // Se avisa cuando aparece una sección nueva, o cada 4k caracteres: suficiente para
+      // que la barra se mueva sin inundar la conexión con un evento por token.
+      if (sections.length > seen || snapshot.length - ticked > 4000) {
+        seen = sections.length;
+        ticked = snapshot.length;
+        onProgress({ chars: snapshot.length, sections });
+      }
+    });
+  }
 
   const response = await stream.finalMessage();
 

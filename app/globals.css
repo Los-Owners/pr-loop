@@ -213,3 +213,50 @@ a { color: var(--accent); }
 }
 .gateBack { display: block; margin: 13px auto 0; padding: 6px 10px; border: 0; background: transparent; color: var(--faint); font-size: 12.5px; }
 .linkBtn { flex: none; padding: 5px 9px; border: 1px solid var(--line); border-radius: 7px; background: #fff; color: var(--soft); font-size: 11.5px; }
+
+/* ── Progreso del análisis ─────────────────────────────────────────────────── */
+
+.scanList { display: flex; flex-direction: column; gap: 4px; width: 460px; }
+
+.scanRow {
+  display: flex; align-items: flex-start; gap: 11px;
+  padding: 11px 13px; border-radius: 10px;
+  border: 1px solid transparent; background: transparent;
+  transition: background .25s ease, border-color .25s ease;
+}
+.scanRow[data-state="running"] { background: var(--sunk); border-color: var(--line); }
+.scanRow[data-state="pending"] { opacity: .45; }
+
+.scanIcon { display: flex; align-items: center; justify-content: center; width: 15px; height: 20px; flex: none; }
+.scanRow[data-state="done"] .scanIcon { color: var(--green); }
+
+/* El punto de una fase que todavía no empezó. */
+.scanDot { width: 7px; height: 7px; border-radius: 50%; background: var(--faint); }
+
+/* El círculo que gira mientras la fase corre: un borde abierto en rotación continua. */
+.scanSpinner {
+  width: 13px; height: 13px; border-radius: 50%;
+  border: 1.8px solid var(--line); border-top-color: var(--accent);
+  animation: scanSpin .7s linear infinite;
+}
+@keyframes scanSpin { to { transform: rotate(360deg); } }
+
+.scanBody { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.scanLabel { font-size: 13.5px; color: var(--soft); }
+.scanRow[data-state="running"] .scanLabel { color: var(--ink); font-weight: 500; }
+.scanRow[data-state="done"] .scanLabel { color: var(--ink); }
+.scanDetail { font-size: 11.5px; color: var(--faint); font-family: var(--mono); }
+
+/* Las secciones del contrato que el modelo ya emitió, según van llegando. */
+.scanChips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 4px; }
+.scanChip {
+  font-family: var(--mono); font-size: 10px; color: var(--soft);
+  border: 1px solid var(--line); border-radius: 5px; padding: 2px 6px; background: #fff;
+  animation: scanChipIn .28s ease both;
+}
+@keyframes scanChipIn { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .scanSpinner { animation-duration: 2.4s; }
+  .scanChip { animation: none; }
+}

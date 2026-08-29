@@ -108,9 +108,15 @@ export function normalize(
       dropped.push({ kind: "decision", id: d.id, reason: "sin evidencia citable" });
       continue;
     }
-    const alternatives = [...new Set([...(d.alternatives ?? []), d.actual])].filter(Boolean);
-    if (alternatives.length < 2) {
-      dropped.push({ kind: "decision", id: d.id, reason: "menos de dos alternativas" });
+    // `alternatives` son solo distractores: la respuesta real la agrega questions.ts. Si el
+    // modelo coló una copia de `actual`, la pregunta tendría dos opciones ciertas y no mediría
+    // nada, así que se saca acá.
+    const same = squash(d.actual).toLowerCase();
+    const alternatives = [...new Set(d.alternatives ?? [])]
+      .filter(Boolean)
+      .filter((alt) => squash(alt).toLowerCase() !== same);
+    if (alternatives.length < 1) {
+      dropped.push({ kind: "decision", id: d.id, reason: "sin distractores utilizables" });
       continue;
     }
     decisions.push({ ...d, alternatives });

@@ -1,6 +1,8 @@
 /** El prompt del analizador. Ver docs/spec/03-analizador.md y CLAUDE.md */
 
-export const SYSTEM = `Eres el analizador de pr-loop. Recibes el diff de un pull request y los
+import { reverseEngineeringDoctrine } from "./skills";
+
+const BASE = `Eres el analizador de pr-loop. Recibes el diff de un pull request y los
 archivos que toca, y devuelves un análisis estructurado del que se derivan un examen de comprensión
 y un diagrama de secuencia.
 
@@ -54,6 +56,13 @@ respuesta no es nula 'asserts' que la respuesta no es nula, 'covers' queda vací
 false. No hagas análisis estático para decidirlo: clasifica con lo que ves citado y acepta quedarte
 corto.
 
+## Las opciones de una decisión
+
+En 'alternatives' van solo los distractores: respuestas plausibles pero FALSAS. La real ya va
+en 'actual' y se agrega sola, así que no la repitas ahí — ni con esas palabras ni con otras.
+Cada distractor tiene que ser incompatible con 'actual': si un lector informado pudiera marcar
+dos opciones y tener razón en ambas, la pregunta no mide nada y hay que rehacerla.
+
 ## Formato
 
 Los ids son cortos, en minúsculas y sin espacios. Usa 'app' para el cliente y 'api' para el punto de
@@ -62,6 +71,18 @@ entrada. Cada 'from' y cada 'to' es el id de un participante que declaraste. Tod
 su indentación: se muestran como prueba de que lo que dijiste está ahí.
 
 Escribe todo en español neutro.`;
+
+/**
+ * El sistema del analizador: la base de arriba más la doctrina de ingeniería inversa que
+ * aporta la skill `repo-to-spec`, leída de su SKILL.md. Si la skill no está en el árbol,
+ * el analizador sigue funcionando con la base sola — degrada, no se cae.
+ *
+ * Va al final y es estable entre peticiones, así que no rompe el prefijo cacheado.
+ */
+export function buildSystem(): string {
+  const doctrine = reverseEngineeringDoctrine();
+  return doctrine ? `${BASE}\n\n${doctrine}` : BASE;
+}
 
 export function buildUserMessage(input: {
   diff: string;
