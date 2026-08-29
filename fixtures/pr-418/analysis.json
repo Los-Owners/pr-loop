@@ -1,0 +1,257 @@
+{
+  "feature": {
+    "title": "Descuento por volumen en el checkout",
+    "summary": "El checkout calcula el total del carrito y aplica 10% de descuento cuando hay suficientes items."
+  },
+  "participants": [
+    {
+      "id": "app",
+      "name": "App cliente",
+      "evidence": "src/checkout/checkout.controller.ts:29"
+    },
+    {
+      "id": "api",
+      "name": "API Checkout",
+      "evidence": "src/checkout/checkout.controller.ts:30"
+    },
+    {
+      "id": "cart",
+      "name": "Servicio de Carrito",
+      "evidence": "src/checkout/checkout.controller.ts:31"
+    },
+    {
+      "id": "price",
+      "name": "Servicio de Precios",
+      "evidence": "src/checkout/checkout.controller.ts:32"
+    },
+    {
+      "id": "coup",
+      "name": "Servicio de Cupones",
+      "evidence": "src/pricing/pricing.service.ts:52"
+    }
+  ],
+  "paths": [
+    {
+      "id": "feliz",
+      "name": "Camino feliz",
+      "kind": "happy",
+      "messages": [
+        {
+          "from": "app",
+          "to": "api",
+          "label": "POST /checkout",
+          "isReturn": false,
+          "evidence": "src/checkout/checkout.controller.ts:29"
+        },
+        {
+          "from": "api",
+          "to": "cart",
+          "label": "obtener items",
+          "isReturn": false,
+          "evidence": "src/checkout/checkout.controller.ts:31"
+        },
+        {
+          "from": "cart",
+          "to": "api",
+          "label": "items",
+          "isReturn": true,
+          "evidence": "src/checkout/checkout.controller.ts:31"
+        },
+        {
+          "from": "api",
+          "to": "price",
+          "label": "calcular total",
+          "isReturn": false,
+          "evidence": "src/pricing/pricing.service.ts:44"
+        },
+        {
+          "from": "price",
+          "to": "coup",
+          "label": "aplicar cupon",
+          "isReturn": false,
+          "evidence": "src/pricing/pricing.service.ts:52"
+        },
+        {
+          "from": "price",
+          "to": "api",
+          "label": "total con descuento",
+          "isReturn": true,
+          "evidence": "src/pricing/pricing.service.ts:56"
+        },
+        {
+          "from": "api",
+          "to": "app",
+          "label": "200 OK",
+          "isReturn": true,
+          "evidence": "src/checkout/checkout.controller.ts:33"
+        }
+      ]
+    },
+    {
+      "id": "nocal",
+      "name": "No califica",
+      "kind": "alternative",
+      "messages": [
+        {
+          "from": "app",
+          "to": "api",
+          "label": "POST /checkout",
+          "isReturn": false,
+          "evidence": "src/checkout/checkout.controller.ts:29"
+        },
+        {
+          "from": "api",
+          "to": "cart",
+          "label": "obtener items",
+          "isReturn": false,
+          "evidence": "src/checkout/checkout.controller.ts:31"
+        },
+        {
+          "from": "cart",
+          "to": "api",
+          "label": "4 items",
+          "isReturn": true,
+          "evidence": "src/checkout/checkout.controller.ts:31"
+        },
+        {
+          "from": "api",
+          "to": "price",
+          "label": "total sin descuento",
+          "isReturn": false,
+          "evidence": "src/pricing/pricing.service.ts:44"
+        },
+        {
+          "from": "api",
+          "to": "app",
+          "label": "200 OK",
+          "isReturn": true,
+          "evidence": "src/checkout/checkout.controller.ts:33"
+        }
+      ]
+    },
+    {
+      "id": "umbral",
+      "name": "Justo en el umbral",
+      "kind": "alternative",
+      "messages": [
+        {
+          "from": "app",
+          "to": "api",
+          "label": "POST /checkout",
+          "isReturn": false,
+          "evidence": "src/checkout/checkout.controller.ts:29"
+        },
+        {
+          "from": "api",
+          "to": "cart",
+          "label": "obtener items",
+          "isReturn": false,
+          "evidence": "src/checkout/checkout.controller.ts:31"
+        },
+        {
+          "from": "cart",
+          "to": "api",
+          "label": "10 items",
+          "isReturn": true,
+          "evidence": "src/checkout/checkout.controller.ts:31"
+        },
+        {
+          "from": "api",
+          "to": "price",
+          "label": "no califica: pide mas de 10",
+          "isReturn": false,
+          "evidence": "src/pricing/pricing.service.ts:44"
+        },
+        {
+          "from": "api",
+          "to": "app",
+          "label": "200 OK sin descuento",
+          "isReturn": true,
+          "evidence": "src/checkout/checkout.controller.ts:33"
+        }
+      ]
+    },
+    {
+      "id": "caida",
+      "name": "Precios no responde",
+      "kind": "missing",
+      "messages": [
+        {
+          "from": "app",
+          "to": "api",
+          "label": "POST /checkout",
+          "isReturn": false,
+          "evidence": "src/checkout/checkout.controller.ts:29"
+        },
+        {
+          "from": "api",
+          "to": "price",
+          "label": "calcular total",
+          "isReturn": false,
+          "evidence": "src/pricing/pricing.client.ts:12"
+        },
+        {
+          "from": "price",
+          "to": "api",
+          "label": "sin respuesta, sin timeout",
+          "isReturn": true,
+          "evidence": "src/pricing/pricing.client.ts:12"
+        },
+        {
+          "from": "api",
+          "to": "app",
+          "label": "la peticion queda esperando",
+          "isReturn": true,
+          "evidence": "src/pricing/pricing.client.ts:12"
+        }
+      ]
+    }
+  ],
+  "decisions": [
+    {
+      "id": "umbral",
+      "question": "¿A partir de cuantos items califica un carrito para el descuento?",
+      "actual": "11",
+      "alternatives": [
+        "10",
+        "11",
+        "depende del cupon"
+      ],
+      "evidence": "src/pricing/pricing.service.ts:44"
+    }
+  ],
+  "tests": [
+    {
+      "id": "t1",
+      "file": "src/pricing/pricing.service.spec.ts:2",
+      "asserts": "Comprueba que un carrito de 12 items termina con 10% menos.",
+      "covers": [
+        "feliz"
+      ],
+      "substantive": true
+    },
+    {
+      "id": "t2",
+      "file": "src/pricing/pricing.service.spec.ts:7",
+      "asserts": "Comprueba que con cupon se aplican los dos descuentos.",
+      "covers": [
+        "feliz"
+      ],
+      "substantive": true
+    },
+    {
+      "id": "t3",
+      "file": "src/pricing/pricing.service.spec.ts:12",
+      "asserts": "Comprueba que la respuesta del checkout no es nula.",
+      "covers": [],
+      "substantive": false
+    }
+  ],
+  "snippets": {
+    "src/checkout/checkout.controller.ts:31": "const items = await this.cart.getItems(body.userId)\nconst total = await this.pricing.quote(items, body.coupon)",
+    "src/pricing/pricing.service.ts:44": "if (items.length > 10) {\n  total = total * 0.9\n}",
+    "src/pricing/pricing.service.ts:52": "if (coupon) {\n  total = await this.coupons.apply(total, coupon)\n}",
+    "src/pricing/pricing.service.spec.ts:12": "it('aplica descuento', async () => {\n  const res = await service.quote(items(3, 10))\n  expect(res).not.toBeNull()\n})",
+    "src/pricing/pricing.client.ts:12": "const res = await this.http.post(PRICING_URL, body)\n// sin timeout, sin retry, sin fallback"
+  }
+}
