@@ -257,7 +257,21 @@ a { color: var(--accent); }
   background: var(--ink); color: #fff; font-size: 14.5px; font-weight: 600;
 }
 .gateBack { display: block; margin: 13px auto 0; padding: 6px 10px; border: 0; background: transparent; color: var(--faint); font-size: 12.5px; }
-.linkBtn { flex: none; padding: 5px 9px; border: 1px solid var(--line); border-radius: 7px; background: #fff; color: var(--soft); font-size: 11.5px; }
+/* Entrar, cuando no hay sesión. Ocupa la fila entera: es la única acción posible ahí. */
+.signInBtn {
+  display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%;
+  padding: 9px 11px; border: 1px solid #e2e2e7; border-radius: 9px;
+  background: #fff; color: var(--ink); font-size: 13px; font-weight: 500;
+}
+.signInBtn:hover { border-color: var(--edge); background: #fcfcfd; }
+
+/* Salir. Solo icono: el nombre y el correo ya se comen el ancho del panel. */
+.iconBtn {
+  flex: none; display: flex; align-items: center; justify-content: center;
+  width: 27px; height: 27px; padding: 0; border: 0; border-radius: 7px;
+  background: transparent; color: var(--faint);
+}
+.iconBtn:hover { background: #ececef; color: var(--red); }
 
 /* ---------- cuenta del drawer ---------- */
 .avatarImg { flex: none; width: 28px; height: 28px; border-radius: 50%; object-fit: cover; background: #e4e9f7; }
