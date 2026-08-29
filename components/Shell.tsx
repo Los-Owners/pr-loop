@@ -1,5 +1,6 @@
 "use client";
 
+import AccountRow from "./AccountRow";
 import { VERDICT_META } from "@/lib/scoring";
 import type { Verdict } from "@/lib/types";
 
@@ -63,15 +64,7 @@ export default function Shell({
         <Group label="Hoy" items={TODAY} />
         <Group label="Semana pasada" items={OLDER} />
 
-        <div className="account">
-          <div className="accountRow">
-            <span className="avatar">JG</span>
-            <span style={{ minWidth: 0, flexGrow: 1 }}>
-              <span style={{ display: "block", fontSize: 13 }}>Jhair Guzmán</span>
-              <span style={{ display: "block", fontSize: 11, color: "var(--faint)" }}>Plan gratuito</span>
-            </span>
-          </div>
-        </div>
+        <AccountRow />
       </aside>
 
       <main className="main">

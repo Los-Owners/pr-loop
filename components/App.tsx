@@ -2,13 +2,15 @@
 
 import { useMemo, useState } from "react";
 import Shell from "./Shell";
+import SignInGate from "./SignInGate";
+import { authEnabled } from "./ConvexClientProvider";
 import Session from "./Session";
 import Report from "./Report";
 import { buildQuestions } from "@/lib/questions";
 import { UNSURE } from "@/lib/scoring";
 import type { Analysis, Answer, Question } from "@/lib/types";
 
-type Step = "start" | "scan" | "session" | "report";
+type Step = "start" | "auth" | "scan" | "session" | "report";
 
 const EMPTY: Answer = { picks: [], text: "" };
 
@@ -25,10 +27,13 @@ export default function App({ analysis }: { analysis: Analysis }) {
     setAnswers({});
   };
 
-  const begin = () => {
+  const scan = () => {
     setStep("scan");
     setTimeout(() => setStep("session"), 1700);
   };
+
+  /** Sin deployment de Convex no hay a quién pedirle login: se analiza directo. */
+  const begin = () => (authEnabled ? setStep("auth") : scan());
 
   const pick = (q: Question, optionId: string) => {
     setAnswers((prev) => {
@@ -95,6 +100,10 @@ export default function App({ analysis }: { analysis: Analysis }) {
             </p>
           </div>
         </div>
+      ) : null}
+
+      {step === "auth" ? (
+        <SignInGate repo={url} onSignedIn={scan} onCancel={() => setStep("start")} />
       ) : null}
 
       {step === "scan" ? (
