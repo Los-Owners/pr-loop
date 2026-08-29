@@ -48,9 +48,9 @@ el valor empieza por `-----BEGIN` y el CLI lee ese guion como un flag desconocid
 
 `.auth-keys.json` está en `.gitignore`. Bórralo igualmente: las llaves ya viven en el deployment.
 
-### 1.3 · OAuth de GitHub — **el paso que falta**
+### 1.3 · OAuth de GitHub
 
-Este es el bloqueo actual. En <https://github.com/settings/developers> → *New OAuth App*:
+En <https://github.com/settings/developers> → *New OAuth App*:
 
 | Campo | Valor |
 |---|---|
@@ -77,11 +77,59 @@ construirse, así que `components/ConvexClientProvider.tsx` lo esquiva y exporta
 
 ### 1.5 · El analizador (opcional)
 
-Necesita `ANTHROPIC_API_KEY` en el entorno, o `ant auth login`. **Nunca se ha ejecutado** — ver §3.
+Necesita `ANTHROPIC_API_KEY` en el entorno, o `ant auth login`. **Nunca se ha ejecutado** — ver §4.
 
 ---
 
-## 2 · Qué funciona
+## 2 · Desplegar a Vercel
+
+Verificado contra `convex@1.45.0` y `@convex-dev/auth@0.0.95`. **La configuración de desarrollo no
+sirve tal cual**: cinco cosas cambian.
+
+1. **Un deployment de producción de Convex**, distinto del de desarrollo. Otro nombre, otra URL.
+
+2. **Una segunda OAuth App de GitHub.** Las docs de Convex Auth son explícitas: no suele poderse
+   compartir la misma app entre desarrollo y producción, porque una apunta a `localhost` y la otra a
+   la URL pública. El callback apunta a **Convex, no a Vercel** — Vercel sirve el front, pero quien
+   recibe el callback es el backend:
+
+   ```
+   dev   https://TU-DEPLOYMENT-DEV.convex.site/api/auth/callback/github
+   prod  https://TU-DEPLOYMENT-PROD.convex.site/api/auth/callback/github
+   ```
+
+3. **`SITE_URL`** en el deployment de producción es la URL de Vercel, no `http://localhost:3007`.
+   Es a donde Convex Auth te devuelve después del login.
+
+4. **El build command de Vercel** no es `npm run build`:
+
+   ```
+   npx convex deploy --cmd 'npm run build'
+   ```
+
+   Despliega las funciones de Convex y además inyecta `NEXT_PUBLIC_CONVEX_URL` durante el build, así
+   que esa variable no se pone a mano.
+
+5. **`CONVEX_DEPLOY_KEY` en Vercel.** Dashboard de Convex → deployment de producción → *Deployment
+   Settings* → *General* → *Generate Production Deploy Key*, con permiso `deployment:deploy`. En
+   Vercel, *Environment* = solo **Production**.
+
+Además, `ANTHROPIC_API_KEY` en Vercel si el analizador ha de correr en producción.
+
+Dos trampas:
+
+- **Las llaves JWT no se heredan entre deployments.** Hay que generar y poner `JWT_PRIVATE_KEY` y
+  `JWKS` también en producción, con el mismo comando de §1.2.
+- **Los preview deployments rompen el login.** Cada PR recibe una URL distinta y el callback de
+  GitHub es fijo. Hay una deploy key de *Preview* aparte, pero el OAuth seguirá fallando salvo que
+  se registre una tercera app. Para el hackathon: ignorarlo y probar en producción.
+
+Calcula 15-20 minutos, no 3. Y es configuración que **falla en silencio**: un callback mal puesto no
+da un error claro, simplemente no entras.
+
+---
+
+## 3 · Qué funciona
 
 Verificado, no supuesto:
 
@@ -92,6 +140,8 @@ Verificado, no supuesto:
 | Backend de auth desplegado | `auth:signIn`, `signOut`, `store`, `isAuthenticated` |
 | `.well-known/openid-configuration` | 200 — el JWKS quedó bien |
 | `/api/auth/callback/github` | 302 — la ruta existe |
+| Flujo OAuth completo | `auth:signIn` → GitHub, con `client_id` y PKCE correctos |
+| GitHub acepta el `redirect_uri` | 302 a la pantalla de autorización, no error |
 
 ### Cómo está armado
 
@@ -119,29 +169,26 @@ Conserva el PR que ya pegaste y deja pasar de largo a quien ya tiene sesión.
 
 ---
 
-## 3 · Qué falta, por orden de valor
+## 4 · Qué falta, por orden de valor
 
 1. **Probar el analizador.** Está escrito y nunca se ha ejecutado: no había credencial en el
    entorno. Corre `npm run dev` y en otra terminal `npm run check:fixture` — comprueba que encuentra
    los tres defectos que el fixture enseña (§ `fixtures/pr-418/README.md`). Cuesta ~$0.15 por
    corrida. Hasta que pase, **no sabemos si el prompt funciona**, y es el foso del producto.
 
-2. **Terminar el login.** Solo falta §1.3. El skill exige verificar un sign-in real antes de darlo
-   por cerrado, y tiene razón.
-
-3. **Ingesta de GitHub.** Traer diff y archivos desde la URL del PR. El analizador ya acepta
+2. **Ingesta de GitHub.** Traer diff y archivos desde la URL del PR. El analizador ya acepta
    `files`, y los usa para verificar que los snippets existen de verdad — con solo el diff esa
    red de seguridad no actúa. La API pública basta para repos públicos; para privados, el token de
    GitHub que ya da el login.
 
-4. **Persistir sesiones en Convex.** El historial del drawer está pintado a mano en `Shell.tsx`.
+3. **Persistir sesiones en Convex.** El historial del drawer está pintado a mano en `Shell.tsx`.
    `convex/schema.ts` solo tiene las tablas de auth.
 
-5. **El botón «Dictar».** Está pintado y no hace nada — ver §5.
+4. **El botón «Dictar».** Está pintado y no hace nada — ver §6.
 
 ---
 
-## 4 · Decisiones que no están en el código
+## 5 · Decisiones que no están en el código
 
 - **El diseño se rehízo tres veces.** El chrome oscuro fue rechazado explícitamente. La dirección es
   *limpio tipo ChatGPT*: drawer gris claro, contenido blanco, acento azul usado con avaricia,
@@ -159,7 +206,7 @@ Conserva el PR que ya pegaste y deja pasar de largo a quien ya tiene sesión.
 
 ---
 
-## 5 · Deuda conocida
+## 6 · Deuda conocida
 
 Ninguna rompe el demo con el fixture actual. Las tres primeras se notan en cuanto se analiza otro PR:
 
@@ -179,7 +226,7 @@ Ninguna rompe el demo con el fixture actual. Las tres primeras se notan en cuant
 
 ---
 
-## 6 · Trampas ya pisadas
+## 7 · Trampas ya pisadas
 
 No hace falta volver a descubrirlas:
 
@@ -210,10 +257,10 @@ No hace falta volver a descubrirlas:
 
 ---
 
-## 7 · Skills útiles
+## 8 · Skills útiles
 
 - **`get-convex/agent-skills@convex-auth`** — ya instalada (`.agents/skills/`, registrada en
-  `skills-lock.json`). De ahí salen §1.2 y las dos primeras trampas de §6.
+  `skills-lock.json`). De ahí salen §1.2 y las dos primeras trampas de §7.
 - **`claude-api`** — obligatoria antes de tocar `lib/analyzer/`. La API cambió en 2025-2026; no
   confiar en la memoria para ids de modelo ni parámetros.
 - **`convex-*`** — hay una familia entera (`convex-env`, `convex-reviewer`, `convex-authz`,
