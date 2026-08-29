@@ -107,7 +107,6 @@ export default function Report({
                 : "Un camino alternativo del feature."}
           </p>
           <SequenceDiagram
-            width={720}
             actors={analysis.participants.map((p) => ({ id: p.id, name: p.name, dim: !used.has(p.id) }))}
             messages={messages}
           />

@@ -158,19 +158,47 @@ a { color: var(--accent); }
 .testCard { border: 1px solid var(--line); border-radius: 10px; background: var(--sunk); padding: 14px 16px; margin-bottom: 8px; }
 
 /* ---------- diagrama ---------- */
+/* Si los actores no entran en el ancho real, el diagrama se desplaza acá y no se aplasta. */
+.diagramScroll { overflow-x: auto; overflow-y: hidden; }
 .diagram { position: relative; }
 .life { position: absolute; border-left: 1px dashed #e4e4e9; }
+
 .actor {
-  position: absolute; top: 0; height: 27px; border-radius: 7px; display: flex;
-  align-items: center; justify-content: center; font-size: 11.5px; white-space: nowrap;
+  position: absolute; top: 0; min-height: 27px; padding: 4px 8px;
+  border-radius: 7px; display: flex; align-items: center; justify-content: center;
+  font-size: 11.5px; line-height: 1.2; text-align: center;
   background: #fff; border: 1px solid #e2e2e7; color: var(--ink);
+  box-sizing: border-box;
+}
+/* Nombres de negocio largos: hasta dos líneas, y lo que no entra queda en el `title`. */
+.actor > span {
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden; overflow-wrap: anywhere;
 }
 .actor[data-new="true"] { border-color: var(--accent); background: var(--accent-soft); }
 .actor[data-dim="true"] { border-color: #efeff2; color: #b0b0b8; }
+
 .msg { position: absolute; }
 .tip { position: absolute; top: -3.5px; width: 0; height: 0; border-top: 3.5px solid transparent; border-bottom: 3.5px solid transparent; }
-.msgLabel { position: absolute; left: 0; width: 100%; top: -19px; text-align: center; font-family: var(--mono); font-size: 10px; line-height: 1; }
-.msgLabel > span { background: #fff; padding: 0 6px; }
+
+/* La etiqueta crece hacia arriba desde la línea: con dos líneas no la invade. */
+.msgLabel {
+  position: absolute; bottom: 5px; left: 50%; transform: translateX(-50%);
+  text-align: center; font-family: var(--mono); font-size: 10px; line-height: 1.25;
+}
+.msgLabel > span {
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden; overflow-wrap: anywhere;
+  background: #fff; padding: 0 6px;
+}
+
+/* Un mensaje de un participante a sí mismo: un lazo sobre su propia línea de vida. */
+.selfMsg {
+  position: absolute; width: 26px; height: 20px;
+  border: 1.8px solid; border-left: 0; border-radius: 0 6px 6px 0; border-color: inherit;
+}
+.selfLabel { left: auto; right: -6px; transform: translateX(100%); text-align: left; bottom: 0; }
+
 .emptyDiagram { position: absolute; top: 150px; left: 0; right: 0; text-align: center; font-size: 13px; color: #a6a6b0; margin: 0; }
 
 /* ---------- reporte ---------- */
